@@ -1,0 +1,227 @@
+#
+# Clean up with:
+#   kubectl delete namespaces pki-demo
+#
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pki-demo
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: ejbca-ingress
+  namespace: pki-demo
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    # Managing the instance with a client TLS certificate will require additional configuration
+    #nginx.ingress.kubernetes.io/auth-tls-verify-client: "optional"
+    #nginx.ingress.kubernetes.io/auth-tls-secret: "default/ca-secret"
+    #nginx.ingress.kubernetes.io/auth-tls-verify-depth: "3"
+    #nginx.ingress.kubernetes.io/auth-tls-pass-certificate-to-upstream: "true"
+    # Hook
+    # nginx.ingress.kubernetes.io/configuration-snippet: |
+    #   proxy_set_header SSL_CLIENT_CERT $ssl_client_cert;
+    # AJP is available in nginx-ingress-controller:0.18.0 and later
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/session-cookie-name: "route"
+    nginx.ingress.kubernetes.io/session-cookie-hash: "sha1"
+    nginx.ingress.kubernetes.io/session-cookie-expires: "1800"
+    nginx.ingress.kubernetes.io/session-cookie-max-age: "1800"
+spec:
+  tls:
+    - hosts:
+      - pki.primekey.example
+  rules:
+  # Ensure that this hostname is resolvable for example in /etc/hosts if you are doing local testing
+  - host: pki.primekey.example
+    http:
+      paths:
+      - path: /ejbca
+        backend:
+          serviceName: ejbca-backend-service
+          servicePort: 8082
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ejbca-backend-service
+  namespace: pki-demo
+  labels:
+    app: ejbca
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8082
+    targetPort: 8082
+  selector:
+    app: ejbca
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ejbca-database-service
+  namespace: pki-demo
+  labels:
+    app: database
+spec:
+  type: ClusterIP
+  ports:
+  - name: database-port
+    port: 3306
+    targetPort: 3306
+  selector:
+    app: database
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ejbca-deployment
+  namespace: pki-demo
+  labels:
+    app: ejbca
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ejbca
+  template:
+    metadata:
+      labels:
+        app: ejbca
+    spec:
+      containers:
+      - name: ejbca
+        image: primekey/ejbca-ce
+        imagePullPolicy: Always
+        resources:
+          limits:
+            cpu: "16"
+            memory: "4096Mi"
+          requests:
+            cpu: 2000m
+            memory: "1536Mi"
+        ports:
+        - containerPort: 8081
+          name: proxied-http
+        - containerPort: 8082
+          name: proxied-https
+        env:
+        - name: PROXY_HTTP_BIND
+          value: "0.0.0.0"
+        - name: INITIAL_ADMIN
+          value: ";PublicAccessAuthenticationToken:TRANSPORT_ANY;"
+        - name: DATABASE_JDBC_URL
+          value: "jdbc:mysql://ejbca-database-service:3306/ejbca?characterEncoding=utf8"
+        - name: DATABASE_USER
+          valueFrom:
+            secretKeyRef:
+              name: ejbca-database-credentials
+              key: username
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: ejbca-database-credentials
+              key: password
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: database-deployment
+  namespace: pki-demo
+  labels:
+    app: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: database
+  template:
+    metadata:
+      labels:
+        app: database
+    spec:
+      containers:
+      - name: mariadb
+        image: library/mariadb:10.2
+        ports:
+        - containerPort: 3306
+          name: mariadb
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: ejbca-database-credentials
+              key: password-root
+        - name: MYSQL_DATABASE
+          value: "ejbca"
+        - name: MYSQL_USER
+          valueFrom:
+            secretKeyRef:
+              name: ejbca-database-credentials
+              key: username
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: ejbca-database-credentials
+              key: password
+        volumeMounts:
+        - name: config-mariadb-volume
+          mountPath: /etc/mysql/config.d/
+      volumes:
+        - name: config-mariadb-volume
+          configMap:
+            name: config-mariadb-configmap
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  namespace: pki-demo
+  name: ejbca-database-credentials
+type: Opaque
+data:
+  # "ejbca"
+  username: ZWpiY2E=
+  # "ejbca"
+  password: ZWpiY2E=
+  # "foo123"
+  password-root: Zm9vMTIz
+---
+apiVersion: v1
+data:
+  custom.cnf: |+
+    # MariaDB database server configuration file.
+    #
+    # For explanations see
+    # https://mariadb.com/kb/en/library/server-system-variables/
+    # https://mariadb.com/kb/en/library/xtradbinnodb-server-system-variables/
+    # https://mariadb.com/kb/en/library/galera-cluster-system-variables/
+    # https://mariadb.com/kb/en/library/wsrep_provider_options/
+    [mysqld]
+    character-set-server    = utf8
+    collation-server        = utf8_bin
+    max_connections         = 100
+    #skip-name-resolve
+    skip-ssl
+    max_allowed_packet      = 128M
+    query_cache_type        = OFF
+    innodb_buffer_pool_dump_at_shutdown = OFF
+    innodb_buffer_pool_load_at_startup  = OFF
+    transaction-isolation   = REPEATABLE-READ
+    innodb_flush_log_at_trx_commit = 1
+    innodb_autoinc_lock_mode       = 2
+    slave_exec_mode         = IDEMPOTENT
+    innodb_buffer_pool_size = 384M
+    innodb_log_file_size    = 64M
+    binlog_format           = row
+    #wsrep_provider          = /usr/lib/galera/libgalera_smm.so
+    #wsrep_on                = ON
+    #wsrep_provider_options  = ""
+    #wsrep_cluster_address   = gcomm://?pc.weight=1
+
+kind: ConfigMap
+metadata:
+  namespace: pki-demo
+  name: config-mariadb-configmap

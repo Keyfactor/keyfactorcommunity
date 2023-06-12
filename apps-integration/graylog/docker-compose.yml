@@ -1,0 +1,65 @@
+
+version: '3'
+networks:
+    access-bridge:
+      driver: bridge
+    application-bridge:
+      driver: bridge
+services:
+  ejbca-ee:
+    container_name: ejbca-ce
+    image: "keyfactor/ejbca-ce"
+    networks:
+      - access-bridge
+      - application-bridge
+    environment:
+      - TLS_SETUP_ENABLED=simple
+    ports:
+      - "80:8080"
+      - "443:8443"
+    depends_on:
+      - graylog
+    logging:
+      driver: "gelf"
+      options:
+        gelf-address: "udp://127.0.0.1:12201"
+        tag: "ejbca-logs"
+  graylog:
+    container_name: graylog
+    image: graylog/graylog:4.3.9
+    environment:
+      - GRAYLOG_PASSWORD_SECRET=somepasswordpepper
+      - GRAYLOG_ROOT_PASSWORD_SHA2=8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
+      - GRAYLOG_HTTP_EXTERNAL_URI=http://127.0.0.1:9000/
+    entrypoint: /usr/bin/tini -- wait-for-it elasticsearch:9200 --  /docker-entrypoint.sh
+    networks:
+      - application-bridge
+    restart: always
+    depends_on:
+      - mongo
+      - elasticsearch
+    ports:
+      - 9000:9000
+      - 12201:12201/udp
+  mongo:
+    image: mongo:4.2
+    networks:
+      - application-bridge
+  elasticsearch:
+    container_name: elasticsearch
+    image: docker.elastic.co/elasticsearch/elasticsearch-oss:7.10.2
+    environment:
+      - http.host=0.0.0.0
+      - transport.host=localhost
+      - network.host=0.0.0.0
+      - "ES_JAVA_OPTS=-Dlog4j2.formatMsgNoLookups=true -Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    networks:
+      - application-bridge

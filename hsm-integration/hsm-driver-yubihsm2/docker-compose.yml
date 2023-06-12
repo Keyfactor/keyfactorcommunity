@@ -1,0 +1,38 @@
+version: '3'
+networks:
+  access-bridge:
+    driver: bridge
+  application-bridge:
+    driver: bridge
+services:
+  ejbca-ee:
+    container_name: ejbca-ee
+    image: "registry.primekey.com/primekey/ejbca-ee:7.10.0.1"
+    depends_on:
+      - hsm-driver-yubihsm2
+    networks:
+      - access-bridge
+      - application-bridge
+    environment:
+      - TLS_SETUP_ENABLED=later
+      - P11SERVER=hsm-driver-yubihsm2
+    volumes:
+      - hsm-driver:/opt/primekey/p11proxy-client
+    ports:
+      - "80:8080"
+      - "443:8443"
+  hsm-driver-yubihsm2:
+    container_name: hsm-driver-yubihsm2
+    image: "hsm-driver-yubihsm2:latest"
+    build:
+      context: .
+      dockerfile: Containerfile 
+    networks:
+      - application-bridge
+    environment:
+      - YUBIHSM_CONNECTOR=http://192.168.x.xxx:12345
+    volumes:
+      - hsm-driver:/opt/primekey/p11proxy-client
+volumes:
+  hsm-driver:
+  

@@ -1,0 +1,27 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    certmanager.k8s.io/cluster-issuer: clusterissuer-ejbca-acme
+    certmanager.k8s.io/acme-challenge-type: http01
+    certmanager.k8s.io/acme-http01-edit-in-place: "false"
+    # Required annotations since the dashboard is only available over HTTPS internally
+    nginx.ingress.kubernetes.io/secure-backends: "true"
+    nginx.org/ssl-backends: "kubernetes-dashboard"
+  name: kubernetes-dashboard-ingress
+  namespace: kube-system
+spec:
+  rules:
+  - host: testsystem.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: kubernetes-dashboard
+          servicePort: 443
+        path: /
+  tls: # < placing a host in the TLS config will indicate a cert should be created
+  - hosts:
+    - testsystem.example.org
+    secretName: cert-ingress-testsystem-example-org # < cert-manager will store the created certificate in this secret.
+
+---

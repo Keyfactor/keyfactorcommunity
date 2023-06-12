@@ -1,0 +1,13 @@
+#!/bin/bash
+echo "
+##
+## Create a few sample slots to make example easier to use.
+## (It is expected that slots already exist in the netHSM the hsm-driver connects to.)
+##
+## Slot PIN: foo123
+##
+"
+softhsm2-util --init-token --free --label "SoftHSM Slot 1" --pin foo123 --so-pin foo1234
+softhsm2-util --init-token --free --label "SoftHSM Slot 2" --pin foo123 --so-pin foo1234
+softhsm2-util --init-token --free --label "SoftHSM Slot 2" --pin foo123 --so-pin foo1234
+softhsm2-util --show-slots

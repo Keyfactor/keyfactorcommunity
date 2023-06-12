@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pki-service
+  namespace: cert-manager
+spec:
+  ports:
+  - port: 443
+    targetPort: 8442
+
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: pki-service
+  namespace: cert-manager
+subsets:
+- addresses:
+  - ip: 192.168.122.1
+  ports:
+  - port: 8442
+
+---

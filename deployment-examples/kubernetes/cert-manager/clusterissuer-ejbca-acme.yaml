@@ -1,0 +1,23 @@
+apiVersion: certmanager.k8s.io/v1alpha1
+kind: ClusterIssuer
+metadata:
+  name: clusterissuer-ejbca-acme
+  namespace: default
+spec:
+  acme:
+    # The ACME server URL
+    # The external LetsEncrypt service is originally specified as:
+    #server: https://acme-v02.api.letsencrypt.org/directory
+    # The EJBCA counterpart without any URL rewriting is /ejbca/acme/<configuration-alias>/directory
+    #  where configuration-alias can be left out to use the 'default' configuration.
+    # Example of EJBCA server URLS:
+    #server: https://pki.example.org/ejbca/acme/directory
+    #server: https://192.168.122.1:8442/ejbca/acme/directory
+    server: https://pki-service/ejbca/acme/directory
+    # Email address used for ACME registration
+    email: k8s-security-team@example.org
+    # Name of a secret used to store the ACME account private key
+    privateKeySecretRef:
+      name: issuer-ejbca-acme-secret
+    # Enable HTTP01 validations
+    http01: {}

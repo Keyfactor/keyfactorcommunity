@@ -1,0 +1,11 @@
+FROM keyfactor/ejbca-ce
+
+USER root
+
+COPY imports/web.properties /opt/primekey/ejbca/conf/
+
+RUN curl -L -s https://download.fortanix.com/clients/4.11.2116/fortanix-pkcs11-4.11.2116-0.x86_64.rpm -o fortanix-pkcs11.x86_64.rpm &&\
+    rpm -iv --nodeps fortanix-pkcs11.x86_64.rpm &&\
+    rm -f fortanix-pkcs11.x86_64.rpm
+
+ENV FORTANIX_API_ENDPOINT https://sdkms.fortanix.com

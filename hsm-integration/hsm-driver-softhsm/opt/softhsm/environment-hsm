@@ -1,0 +1,52 @@
+#!/bin/bash
+
+##################################################################
+#                                                                #
+# Copyright (c) 2018-2021 PrimeKey Solutions AB.                 #
+#                                                                #
+# This software is free software; you can redistribute it and/or #
+# modify it under the terms of the GNU Lesser General Public     #
+# License as published by the Free Software Foundation; either   #
+# version 2.1 of the License, or any later version.              #
+#                                                                #
+# See terms of license at gnu.org.                               #
+#                                                                #
+##################################################################
+
+baseDir="$1"
+tempDir="$2"
+
+### Set-up PKCS11 Configuration
+
+# Override the default /etc/softhsm2.conf
+export SOFTHSM2_CONF="${SOFTHSM2_CONF:-/opt/softhsm/softhsm2.conf}"
+
+export SOFTHSM2_LOG_LEVEL="${SOFTHSM2_LOG_LEVEL:-DEBUG}"
+
+# Update config and make sure 'sed' uses the proper temp dir
+cp "${SOFTHSM2_CONF}" "$tempDir/softhsm2-configuration"
+sed -i "s|^log.level = .*|log.level = ${SOFTHSM2_LOG_LEVEL}|g" "$tempDir/softhsm2-configuration"
+cat "$tempDir/softhsm2-configuration" > "${SOFTHSM2_CONF}"
+rm -f "$tempDir/softhsm2-configuration"
+
+export HSM_PKCS11_LIBRARY="${HSM_PKCS11_LIBRARY:-/usr/lib64/libsofthsm2.so}"
+
+# Show current slots
+softhsm2-util --show-slots
+
+if [ ! -n "$(ls -A /var/lib/softhsm/tokens 2>/dev/null)" ] ; then
+    slotInitScriptFileName="/opt/softhsm/hook-init-tokens"
+    if [ -f "${slotInitScriptFileName}" ] ; then
+        source "${slotInitScriptFileName}"
+    else
+        echo "
+Init script '${slotInitScriptFileName}' was not detected.
+
+Example of commands for manual initialization of a slot in SoftHSM2:
+
+    (docker exec -it <container name> ...)
+    ... softhsm2-util --init-token --free --label myslot
+    ... softhsm2-util --show-slots
+"
+    fi
+fi

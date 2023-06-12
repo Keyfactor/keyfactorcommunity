@@ -1,0 +1,40 @@
+version: '3'
+networks:
+  hsm-driver-bridge:
+    driver: bridge
+services:
+  application:
+    #image: "registry.primekey.com/primekey/<application>:<version>"
+    image: "registry.primekey.com/primekey/ejbca-ee:7.7.0"
+    depends_on:
+      - hsm-driver
+    networks:
+      - hsm-driver-bridge
+    environment:
+      - TLS_SETUP_ENABLED=later
+      - P11SERVER=hsm-driver
+    volumes:
+      - hsm-driver:/opt/primekey/p11proxy-client
+    ports:
+      - "80:8080"
+      - "443:8443"
+  hsm-driver:
+    # NOTE: You also leverage a pre-built hsm-driver container here
+    #image: "registry.primekey.com/primekey/hsm-driver-<brand>:<version>"
+    # Build your specific the driver on top of from registry.primekey.com/primekey/hsm-driver-base
+    # This example is using SoftHSMv2 to mock a netHSM
+    build:
+      context: .
+      dockerfile: Containerfile
+    networks:
+      - hsm-driver-bridge
+    environment:
+      - SOFTHSM2_LOG_LEVEL=INFO
+    volumes:
+      - hsm-driver:/opt/primekey/p11proxy-client
+      # Add the following if you want SoftHSMv2 to perist key material on the host
+      # Usually netHSM drivers don't need to keep any state, but SoftHSM used
+      # in this example for testing is not really a netHSM.'
+      #- ./tokens:/var/lib/softhsm/tokens:rw
+volumes:
+  hsm-driver:

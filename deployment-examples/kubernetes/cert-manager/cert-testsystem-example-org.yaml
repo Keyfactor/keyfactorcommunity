@@ -1,0 +1,22 @@
+apiVersion: certmanager.k8s.io/v1alpha1
+kind: Certificate
+metadata:
+  name: cert-testsystem-example-org
+  namespace: default
+spec:
+  secretName: cert-secret-testsystem-example-org
+  renewBefore: 360h # 15d
+  issuerRef:
+    name: clusterissuer-ejbca-acme
+    kind: ClusterIssuer
+  commonName: testsystem.example.org
+  dnsNames:
+  - testsystem.example.org
+  acme:
+    config:
+    - http01:
+        ingressClass: nginx
+      domains:
+      - testsystem.example.org
+
+---

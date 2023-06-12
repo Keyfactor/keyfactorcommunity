@@ -1,0 +1,61 @@
+FROM registry.primekey.com/primekey/hsm-driver-base:0.4.25
+
+# Ref. https://developers.yubico.com/YubiHSM2/Releases/
+ARG DRIVER_DOWNLOAD_URL="https://developers.yubico.com/YubiHSM2/Releases/yubihsm2-sdk-2022-06-centos7-amd64.tar.gz"
+ARG DRIVER_DOWNLOAD_CHECKSUM="6edb82375224f914910dcae9e0e7cef1d96f456be3311a25f7ff652d84cd0b71"
+
+# Yubico devs sign the SDK packages using OpenPGP keys, refer to that if you want to verify the signature
+# https://developers.yubico.com/Software_Projects/Software_Signing.html
+#ARG DRIVER_SIGNATURE="https://developers.yubico.com/YubiHSM2/Releases/yubihsm2-sdk-2022-06-centos7-amd64.tar.gz.sig"
+
+USER 0:0
+
+RUN \
+    microdnf install --assumeyes pcsc-lite libedit ncurses-compat-libs compat-openssl10 tar
+
+COPY --chown=10001:0  ./opt/yubihsm2/ /opt/yubihsm2/
+
+RUN mkdir /opt/yubihsm2/packages && \
+    cd /opt/yubihsm2/packages && \
+    curl -sS -L "${DRIVER_DOWNLOAD_URL}" -o "yubihsm2-sdk.tar.gz" && \
+    sha256sum "yubihsm2-sdk.tar.gz" | grep "${DRIVER_DOWNLOAD_CHECKSUM}" && \
+    tar -xvf yubihsm2-sdk.tar.gz && \
+    cp yubihsm2-sdk/yubihsm-shell*.rpm . && \
+    ls -alh
+
+RUN rpm -Uvlh --force /opt/yubihsm2/packages/yubihsm-shell*.rpm && \
+    chown 10001:0 /usr/lib64/pkcs11/yubihsm_pkcs11.so
+
+# Clean up
+RUN \
+    rm -rf /opt/yubihsm2/packages && \
+    microdnf remove tar && \
+    microdnf clean all && \ 
+    rm -rf /var/cache/yum
+
+# Provide a VOLUME for the --volumes-from pattern
+VOLUME /opt/primekey/p11proxy-client/
+
+# Location of configuration file
+ENV YUBIHSM_PKCS11_CONF="/opt/yubihsm2/yubihsm_pkcs11.conf"
+
+# Initialize defaults
+ENV YUBIHSM_CONNECTOR=http://localhost:12345
+ENV YUBIHSM_DEBUG=false
+ENV YUBIHSM_STDOUT=false
+ENV YUBIHSM_DINOUT=false
+ENV YUBIHSM_LIBDEBUG=false
+ENV YUBIHSM_CACERT=false
+ENV YUBIHSM_PROXY=false
+ENV YUBIHSM_TIMEOUT=false
+
+# Path recommendation
+ENV PATH="/bin:/usr/bin"
+
+# Privilege recommendation (unprivileged user belonging to the root group) for execution
+USER 10001:0
+
+WORKDIR /opt
+
+# Use the start script from the base container and override setup using the environment-hsm file
+#CMD [...]
