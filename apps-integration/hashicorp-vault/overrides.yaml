@@ -1,0 +1,109 @@
+global:
+  enabled: true
+  tlsDisable: false
+injector:
+  enabled: true
+server:
+  enabled: true
+  resources:
+    requests:
+      memory: 500Mi
+      cpu: 400m
+    limits:
+      memory: 500Mi
+      cpu: 400m
+  logLevel: "debug"
+  ingress:
+    enabled: true
+    labels:
+      app: hashicorp-vault
+    annotations:
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    ingressClassName: "public"
+    activeService: true
+    hosts:
+      - host: api.vault
+    tls:
+      - secretName: tls-api-vault
+        hosts:
+          - api.vault
+  extraInitContainers:
+    - name: ejbca-vault-plugin
+      image: "golang:alpine"
+      command: [sh, -c]
+      args:
+        - cd /tmp &&
+          export GOCACHE=/tmp &&
+          wget https://github.com/Keyfactor/ejbca-vault-pki-engine/archive/refs/tags/v1.0.0.tar.gz -O ejbca-vault-pki-engine.tar.gz &&
+          tar -xf ejbca-vault-pki-engine.tar.gz &&
+          cd ejbca-vault-pki-engine-1.0.0 &&
+          go build -o ejbca-vault-pki-engine cmd/ejbca-pki/main.go &&
+          mv ejbca-vault-pki-engine /usr/local/libexec/vault/ejbca-vault-pki-engine &&
+          chmod +x /usr/local/libexec/vault/ejbca-vault-pki-engine
+      volumeMounts:
+        - name: plugins
+          mountPath: /usr/local/libexec/vault
+  extraEnvironmentVars:
+    VAULT_CACERT: /vault/userconfig/vault-ha-tls/vault.ca
+    VAULT_TLSCERT: /vault/userconfig/vault-ha-tls/vault.crt
+    VAULT_TLSKEY: /vault/userconfig/vault-ha-tls/vault.key
+  volumes:
+    - name: userconfig-vault-ha-tls
+      secret:
+        defaultMode: 420
+        secretName: vault-ha-tls
+    - name: plugins
+      emptyDir: {}
+    - name: tls-trust-chain
+      configMap:
+        name: vault-tls-trust-chain-configmap
+  volumeMounts:
+    - mountPath: /vault/userconfig/vault-ha-tls
+      name: userconfig-vault-ha-tls
+      readOnly: true
+    - mountPath: /usr/local/libexec/vault
+      name: plugins
+      readOnly: true
+    - mountPath: /etc/ssl/certs
+      name: tls-trust-chain
+      readOnly: true
+  dataStorage:
+    enabled: true
+    size: 1Gi
+    mountPath: "/vault/data"
+    storageClass: null
+    accessMode: ReadWriteOnce
+    annotations: {}
+  auditStorage:
+    enabled: true
+    size: 1Gi
+    mountPath: "/vault/audit"
+    storageClass: null
+    accessMode: ReadWriteOnce
+    annotations: {}
+  affinity: ""
+  standalone:
+    enabled: false
+  ha:
+    enabled: true
+    replicas: 3
+    raft:
+      enabled: true
+      setNodeId: true
+      config: |
+        ui = true
+
+        listener "tcp" {
+          tls_disable = 0
+          address = "[::]:8200"
+          cluster_address = "[::]:8201"
+          tls_cert_file = "/vault/userconfig/vault-ha-tls/vault.crt"
+          tls_key_file  = "/vault/userconfig/vault-ha-tls/vault.key"
+          tls_client_ca_file = "/vault/userconfig/vault-ha-tls/vault.ca"
+        }
+        storage "raft" {
+          path = "/vault/data"
+        }
+        disable_mlock = true
+        service_registration "kubernetes" {}
+        plugin_directory = "/usr/local/libexec/vault"
