@@ -1,9 +1,9 @@
 ![Keyfactor Community](../../keyfactor_community_logo.png)
 # EJBCA REST API for Certificate Enrollment
-The sample scripts can be use to enroll for a certificate using the EJBCA REST API. 
+The sample scripts can be used to enroll for a certificate using the EJBCA REST API. 
 
-## Prequisites
-You must have the following prequisites met to use these scripts:
+## Prerequisites
+You must have the following prerequisites met to use these scripts:
 
 - EJBCA configured with a certificate profile, end entity profile, CA, role, etc to issue certificates
 - P12 file that is permitted in an EJBCA role to issue an End Entity 
@@ -30,7 +30,7 @@ openssl pkcs12 -in keyfactorCommunityRA.p12 -out keyfactorCommunityRA.pem -nokey
 4. Enter the password for the P12 file 
 
 ### Create Private Key and CSR
-Use an OpenSSL configuration file to easily include the fields in the CSR which are desired:
+Use an OpenSSL configuration file to easily include the desired fields in the CSR:
 
 1. Create the OpenSSL configuration file
 
@@ -82,7 +82,9 @@ openssl req -new -sha256 -key server-01.key -out server-01.csr -config server-01
 ```
 
 ### Python Enrollment with pkcs10Enroll.py
-The following information is needed to enroll with the python script:
+See the sample script: [pkcs10Enroll.py](pkcs10Enroll.py).
+
+The following information is needed to enroll with the Python script:
 
 - CA URL, e.g., ejbca-node1
 - CA chain file which contains the CA certificate files that issued the TLS certificate to the EJBCA instance, e.g., ManagementCA.pem
@@ -102,6 +104,8 @@ The following information is needed to enroll with the python script:
 ```
 
 ### Shell Enrollment with pkcs10Enroll.sh
+See the sample script: [pkcs10Enroll.sh](pkcs10Enroll.sh).
+
 The following information is needed to enroll with the shell script:
 
 - CA URL, e.g., ejbca-node1

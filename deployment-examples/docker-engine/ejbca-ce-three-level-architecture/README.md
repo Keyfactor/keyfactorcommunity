@@ -10,7 +10,7 @@ The scope of this example is to demonstrate:
 
 A highly available service in production would additionally use
 
-* EJBCA EE with 24/7 support by PrimeKey
+* EJBCA EE with 24/7 support by Keyfactor
 * redundant highly available hardened and optimized load-balancers
 * a redundant highly available hardened and optimized database like MariaDB Galera cluster.
 
@@ -66,7 +66,7 @@ docker run -d --restart=always --network ejbca-bridge --name ejbca-node1 \
     -e "DATABASE_USER=ejbca" \
     -e "DATABASE_PASSWORD=ejbca" \
     -e "PROXY_AJP_BIND=0.0.0.0" \
-    primekey/ejbca-ce
+    keyfactor/ejbca-ce
 ```
 
 Follow the progress by tailing the logs:
@@ -118,7 +118,7 @@ docker run -d --restart=always --network ejbca-bridge --name ejbca-node2 \
     -e "DATABASE_USER=ejbca" \
     -e "DATABASE_PASSWORD=ejbca" \
     -e "PROXY_AJP_BIND=0.0.0.0" \
-    primekey/ejbca-ce
+    keyfactor/ejbca-ce
 ```
 
 The front end will automatically add this back-end once it is started.
@@ -130,7 +130,7 @@ Since all relevant information is stored in the shared SQL database, we simply n
 
 Download new image:
 ```
-docker pull primekey/ejbca-ce
+docker pull keyfactor/ejbca-ce
 ```
 
 Replace `ejbca-node1`:
@@ -141,7 +141,7 @@ docker run -d --restart=always --network ejbca-bridge --name ejbca-node1 \
     -e "DATABASE_USER=ejbca" \
     -e "DATABASE_PASSWORD=ejbca" \
     -e "PROXY_AJP_BIND=0.0.0.0" \
-    primekey/ejbca-ce
+    keyfactor/ejbca-ce
 ```
 
 Verify that `ejbca-node1` started successfully:
@@ -157,7 +157,7 @@ docker run -d --restart=always --network ejbca-bridge --name ejbca-node2 \
     -e "DATABASE_USER=ejbca" \
     -e "DATABASE_PASSWORD=ejbca" \
     -e "PROXY_AJP_BIND=0.0.0.0" \
-    primekey/ejbca-ce
+    keyfactor/ejbca-ce
 ```
 
 Verify that `ejbca-node2` started successfully:

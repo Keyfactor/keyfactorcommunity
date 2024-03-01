@@ -2,10 +2,3 @@
 *.log
 *.retry
 *.swp
-peerCertSerialNums/*
-ejbca*/*
-devsec*
-*AzureTest*
-deployment_info/custom*
-test_*
-DELETE*
