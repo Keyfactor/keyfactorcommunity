@@ -34,9 +34,9 @@ server:
       args:
         - cd /tmp &&
           export GOCACHE=/tmp &&
-          wget https://github.com/Keyfactor/ejbca-vault-pki-engine/archive/refs/tags/v1.0.0.tar.gz -O ejbca-vault-pki-engine.tar.gz &&
+          wget https://github.com/Keyfactor/ejbca-vault-pki-engine/archive/refs/tags/v1.1.0.tar.gz -O ejbca-vault-pki-engine.tar.gz &&
           tar -xf ejbca-vault-pki-engine.tar.gz &&
-          cd ejbca-vault-pki-engine-1.0.0 &&
+          cd ejbca-vault-pki-engine-1.1.0 &&
           go build -o ejbca-vault-pki-engine cmd/ejbca-pki/main.go &&
           mv ejbca-vault-pki-engine /usr/local/libexec/vault/ejbca-vault-pki-engine &&
           chmod +x /usr/local/libexec/vault/ejbca-vault-pki-engine
