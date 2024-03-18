@@ -1,5 +1,9 @@
 # Issuing certificates to Kubernetes services using an external EJBCA EE
 
+***This integration is no longer maintaind and available for reference only. The cert-manager EJBCA integration is now accomplished using the [Keyfactor EJBCA Issuer for cert-manager](https://github.com/Keyfactor/ejbca-cert-manager-issuer) and integrates with the community and enterprise versions of EJBCA.***
+
+## Background
+
 This is a simplified example of how to setup an EJBCA EE installation to issue certificates to services running in <https://microk8s.io/>
 Kubernetes using the ACME protocol specified described in <https://tools.ietf.org/html/rfc8555>.
 
@@ -8,8 +12,6 @@ The scope of this example is to demonstrate that:
 * EJBCA EE can be used to automatically provision TLS certificate to services (in the broader sense) running on Kubernetes.
 * EJBCA EE's ACME Draft 12 implementation is compatible with <https://docs.cert-manager.io/>.
 * ACME can be used internally in an organization for automation of certificate management without publishing internal DNS names to a public service.
-
-## Background
 
 Deployments (applications) in Kubernetes are by default only available from inside the cluster.
 Using an Ingress (similar to a virtual host) can expose the Deployment to the outside world for consumption.
