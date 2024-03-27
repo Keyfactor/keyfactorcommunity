@@ -1,5 +1,3 @@
-![Keyfactor Community](../keyfactor_community_logo.png)
-
 # HSM Integrations
 
 ## Drivers for Hardware Security Module (HSM) integration
