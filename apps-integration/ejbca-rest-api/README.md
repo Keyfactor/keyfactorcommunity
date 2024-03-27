@@ -1,4 +1,3 @@
-![Keyfactor Community](../../keyfactor_community_logo.png)
 # EJBCA REST API for Certificate Enrollment
 The sample scripts can be used to enroll for a certificate using the EJBCA REST API. 
 
