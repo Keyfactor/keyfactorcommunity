@@ -20,7 +20,11 @@
 # Keyfactor Community 
 This repository contains container-related tools, scripts, examples, and documentation to use with EJBCA, SignServer, and Bouncy Castle. 
 
-Community Edition containers of Keyfactor applications are made available on Dockerhub. See [https://hub.docker.com/r/keyfactor/](https://hub.docker.com/r/keyfactor/) for a list of currently published applications.
+Community Editions of Keyfactor applications are available on GitHub: 
+* [EJBCA CE](https://github.com/Keyfactor/ejbca-ce)
+* [SignServer CE](https://github.com/Keyfactor/signserver-ce)
+
+Community Edition containers of Keyfactor applications are also available on Dockerhub. See [https://hub.docker.com/r/keyfactor/](https://hub.docker.com/r/keyfactor/).
 
 Enterprise Edition containers of Keyfactor applications are made available to customers from a Keyfactor registry. Visit https://www.keyfactor.com/ for more information.
 
@@ -28,9 +32,12 @@ Enterprise Edition containers of Keyfactor applications are made available to cu
 <!--- Insert instructions on how to install and configure. If short enough, include directly in this section. --->
 
 To get started, see the READMEs in the respective folders: 
+* [Apps Integration](../apps-integration)
+* [Deployment Examples](../deployment-examples)
+* [HSM Integration](../hsm-integration)
 
 ### System Requirements
-
+See README in the respective folder.
 
 ## Community Support
 In the [Keyfactor Community](https://www.keyfactor.com/community/), we welcome contributions. 
