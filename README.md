@@ -1,30 +1,51 @@
-![Keyfactor Community](keyfactor_community_logo.png)
+<!--EJBCA Community logo -->
+<a href="https://ejbca.org">
+    <img src="community-ejbca.png?raw=true)" alt="EJBCA logo" title="EJBCA" height="50" />
+</a>
+<!--EJBCA Enterprise logo -->
+<a href="https://www.keyfactor.com/products/ejbca-enterprise/">
+    <img src="keyfactor-ejbca-enterprise.png?raw=true)" alt="EJBCA logo" title="EJBCA" height="50" />
+</a>
 
-# Keyfactor Community supported 
-We welcome contributions.
- 
-Keyfactor Community tools is open source and community supported, meaning that there is **no SLA** applicable for these tools.
+<!-- SignServer Community logo -->
+<a href="https://signserver.org">
+    <img src="community-signserver.png?raw=true)" alt="SignServer logo" title="SignServer" height="50" />
+</a>
 
-To report a problem or suggest a new feature, use the **[EJBCA Issues](https://github.com/Keyfactor/ejbca-ce/issues)** tab. If you want to contribute actual bug fixes or proposed enhancements, use the **[Pull requests](../../pulls)** tab.
+<!-- SignServer Enterprise logo -->
+<a href="https://www.keyfactor.com/products/signserver-enterprise/">
+    <img src="keyfactor-signserver-enterprise.png?raw=true)" alt="SignServer logo" title="SignServer" height="50" />
+</a>
 
-# Tools, scripts, examples, and documentation
-
-This repository contains container related tools, scripts, examples and documentation to use with EJBCA, SignServer, and Bouncy Castle.
-
-## Containers
-Enterprise Edition containers of Keyfactor applications are made available to customers from a Keyfactor registry. Visit https://www.keyfactor.com/ for more information.
+# Keyfactor Community 
+This repository contains container-related tools, scripts, examples, and documentation to use with EJBCA, SignServer, and Bouncy Castle. 
 
 Community Edition containers of Keyfactor applications are made available on Dockerhub. See [https://hub.docker.com/r/keyfactor/](https://hub.docker.com/r/keyfactor/) for a list of currently published applications.
 
-# License
-LGPL 2.1 or later.
+Enterprise Edition containers of Keyfactor applications are made available to customers from a Keyfactor registry. Visit https://www.keyfactor.com/ for more information.
 
-## Related projects 
+## Get Started
+<!--- Insert instructions on how to install and configure. If short enough, include directly in this section. --->
 
-* [Keyfactor/ejbca-ce](https://github.com/Keyfactor/ejbca-ce) 
-* [Keyfactor/ejbca-tools](https://github.com/Keyfactor/ejbca-tools) 
-* [Keyfactor/ejbca-vault-plugin](https://github.com/Keyfactor/ejbca-vault-plugin) 
-* [Keyfactor/ejbca-vault-monitor](https://github.com/Keyfactor/ejbca-vault-monitor) 
-* [Keyfactor/ejbca-cert-cvc](https://github.com/Keyfactor/ejbca-cert-cvc) 
-* [Keyfactor/ejbca-containers](https://github.com/Keyfactor/ejbca-containers) 
-* [Keyfactor/signserver-tools](https://github.com/Keyfactor/signserver-tools) 
+To get started, see the READMEs in the respective folders: 
+
+### System Requirements
+
+
+## Community Support
+In the [Keyfactor Community](https://www.keyfactor.com/community/), we welcome contributions. 
+
+The Community software is open-source and community-supported, meaning that **no SLA** is applicable.
+
+* To report a problem or suggest a new feature, go to [Issues](../../issues).
+* If you want to contribute actual bug fixes or proposed enhancements, see the [Contributing Guidelines](CONTRIBUTING.md) and go to [Pull requests](../../pulls).
+
+## Commercial Support
+
+Commercial support is available for [EJBCA Enterprise](https://www.keyfactor.com/products/ejbca-enterprise/) and [SignServer Enterprise](https://www.keyfactor.com/products/signserver-enterprise/).
+
+## License
+For license information, see [LICENSE](LICENSE). 
+
+## Related Projects
+See all [Keyfactor EJBCA GitHub projects](https://github.com/orgs/Keyfactor/repositories?q=ejbca) and all [Keyfactor SignServer GitHub projects](https://github.com/orgs/Keyfactor/repositories?q=signserver). 
