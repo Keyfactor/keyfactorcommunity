@@ -1,5 +1,3 @@
-![Keyfactor Community](../../keyfactor_community_logo.png)
-
 #### Send EJBCA CE container logs to Graylog syslog server container
 
 Graylog can consume GELF (Graylog Extended Log Format) - similar to Logstash, we could send the stdout logs over udp using docker gelf logging driver.
