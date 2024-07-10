@@ -1,22 +1,3 @@
-<!--EJBCA Community logo -->
-<a href="https://ejbca.org">
-    <img src=".github/images/community-ejbca.png?raw=true)" alt="EJBCA logo" title="EJBCA" height="50" />
-</a>
-<!--EJBCA Enterprise logo -->
-<a href="https://www.keyfactor.com/products/ejbca-enterprise/">
-    <img src=".github/images/keyfactor-ejbca-enterprise.png?raw=true)" alt="EJBCA logo" title="EJBCA" height="50" />
-</a>
-
-<!-- SignServer Community logo -->
-<a href="https://signserver.org">
-    <img src=".github/images/community-signserver.png?raw=true)" alt="SignServer logo" title="SignServer" height="50" />
-</a>
-
-<!-- SignServer Enterprise logo -->
-<a href="https://www.keyfactor.com/products/signserver-enterprise/">
-    <img src=".github/images/keyfactor-signserver-enterprise.png?raw=true)" alt="SignServer logo" title="SignServer" height="50" />
-</a>
-
 # Keyfactor Community 
 This repository contains container-related tools, scripts, examples, and documentation to use with EJBCA, SignServer, and Bouncy Castle. 
 
@@ -29,7 +10,7 @@ Community Edition containers of Keyfactor applications are also available on Doc
 Enterprise Edition containers of Keyfactor applications are made available to customers from a Keyfactor registry. Visit https://www.keyfactor.com/ for more information.
 
 ## Get Started
-<!--- Insert instructions on how to install and configure. If short enough, include directly in this section. --->
+<!--- Insert instructions on how to install and configure. If short enough, include it directly in this section. --->
 
 To get started, see the READMEs in the respective folders: 
 * [Apps Integration](../apps-integration)
