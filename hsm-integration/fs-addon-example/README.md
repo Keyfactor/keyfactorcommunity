@@ -28,14 +28,9 @@ For example to add a Thales DPoD client (as described in the EJBCA documentation
 
 Start the container, adding the file system mounts and the environment variable to point to the driver location.
 With Enterprise Edition both 'PKCS#11 NG Crypto Token' and 'PKCS#11 Crypto Token' (Java PKCS#11 provider) is available.
-
+With Community edition, where only 'PKCS#11 Crypto Token' is available.
 ```
-sudo docker run -it --rm --name thales_test -p 80:8080 -p 443:8443 -v /opt/thales:/opt/thales -e ChrystokiConfigurationPath=/opt/thales/dpodclient registry.primekey.se/primekey/ejbca-ee:latest
-```
-
-Or with Community edition, where only 'PKCS#11 Crypto Token' is available.
-```
-sudo docker run -it --rm --name thales_test -p 80:8080 -p 443:8443 -e TLS_SETUP_ENABLED="simple" -v /opt/thales:/opt/thales -e ChrystokiConfigurationPath=/opt/thales/dpodclient keyfactor/ejbca-ce:latest
+docker run -it --rm --name thales_test -p 80:8080 -p 443:8443 -e TLS_SETUP_ENABLED="simple" -v /opt/thales:/opt/thales -e ChrystokiConfigurationPath=/opt/thales/dpodclient keyfactor/ejbca-ce:latest
 ```
 
 
@@ -50,13 +45,13 @@ ls -al /opt/thales
 An example using SoftHSM2 could look like:
 
 ```
-sudo docker run -it --rm --name softhsm_test -p 80:8080 -p 443:8443 -e TLS_SETUP_ENABLED="simple" -e SOFTHSM2_CONF=/opt/softhsm/config/softhsm2.conf -v /opt/softhsm/lib:/usr/local/lib/softhsm -v /opt/softhsm/tokens:/opt/softhsm/tokens -v /opt/softhsm/config:/opt/softhsm/config -e LOG_LEVEL_APP=DEBUG keyfactor/ejbca-ce:latest
+docker run -it --rm --name softhsm_test -p 80:8080 -p 443:8443 -e TLS_SETUP_ENABLED="simple" -e SOFTHSM2_CONF=/opt/softhsm/config/softhsm2.conf -v /opt/softhsm/lib:/usr/local/lib/softhsm -v /opt/softhsm/tokens:/opt/softhsm/tokens -v /opt/softhsm/config:/opt/softhsm/config -e LOG_LEVEL_APP=DEBUG keyfactor/ejbca-ce:latest
 ```
 We have seen here that privileges on the token is crucial, the container need to have proper access to directories and files or you will get errors like CKR_TOKEN_NOT_RECOGNIZED.
 
 ```
-sudo docker ps
-sudo docker exec -ti softhsm_test /bin/bash
+docker ps
+docker exec -ti softhsm_test /bin/bash
 cd /opt/softhsm/tokens
 ls -al 81660e6e-fcbf-cdf9-7d37-ae8ac90167b5 (or whatever your token directory is called)
 ```
