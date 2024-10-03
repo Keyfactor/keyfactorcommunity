@@ -1,5 +1,3 @@
-![Keyfactor Community](../../keyfactor_community_logo.png)
-
 # EBJCA Vault Plugin Integration
 The override.yaml file is used with the tutorial to deploy Hashicorp Vault with the EJBCA Plugin using the Hashicorp Vault Helm chart.
 
