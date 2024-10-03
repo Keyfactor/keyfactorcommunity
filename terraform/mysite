@@ -1,0 +1,13 @@
+server {
+    server_name site.example.org;
+    ssl_verify_client optional_no_ca;
+    location / {
+	proxy_pass http://172.3.0.5:8082;
+	proxy_set_header Host $host;
+	proxy_set_header X-Real_IP $remote_addr;
+	proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+	proxy_set_header X-Forwarded-Proto $scheme;
+	proxy_set_header SSL_CLIENT_CERT $ssl_client_cert;
+	proxy_read_timeout 300s;
+    }
+}
