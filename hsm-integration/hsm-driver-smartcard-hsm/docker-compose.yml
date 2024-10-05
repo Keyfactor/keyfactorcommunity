@@ -1,0 +1,56 @@
+networks:
+  access-bridge:
+    driver: bridge
+  application-bridge:
+    driver: bridge
+services:
+  ejbca-database:
+    container_name: ejbca-database
+    image: "library/mariadb:latest"
+    networks:
+      - application-bridge
+    environment:
+      - MYSQL_ROOT_PASSWORD=foo123
+      - MYSQL_DATABASE=ejbca
+      - MYSQL_USER=ejbca
+      - MYSQL_PASSWORD=ejbca
+    volumes:
+      - ./datadbdir:/var/lib/mysql:rw
+  ejbca-node1:
+    hostname: ejbca-node1
+    container_name: ejbca
+#    image: keyfactor/ejbca-ce:latest
+#
+# Use local build
+    image: ejbca-cc:latest
+    depends_on:
+      - ejbca-database
+    networks:
+      - access-bridge
+      - application-bridge
+    environment:
+      - DATABASE_JDBC_URL=jdbc:mariadb://ejbca-database:3306/ejbca?characterEncoding=UTF-8
+      - LOG_LEVEL_APP=INFO
+      - LOG_LEVEL_SERVER=INFO
+      - TLS_SETUP_ENABLED=simple
+    ports:
+      - "80:8080"
+      - "443:8443"
+    volumes:
+      - type: bind
+        source: /var/run/pcscd
+        target: /var/run/pcscd
+        read_only: false
+
+# Enable if pcscd on the host and libpcsclite in the container are not
+# compatible (e.g. host is Debian based)
+#      - type: bind
+#        source: /usr/lib/x86_64-linux-gnu/libpcsclite.so.1.0.0
+#        target: /usr/lib64/libpcsclite.so.1.0.0
+#        read_only: true
+
+# Enable for versions before 9.1
+#      - type: bind
+#        source: ./web.properties
+#        target: /opt/keyfactor/ejbca/conf/web.properties
+#        read_only: true
