@@ -8,6 +8,7 @@ This script automates the complete certificate enrollment workflow:
 1. Generates a Certificate Signing Request (CSR) using Windows `certreq`
 2. Enrolls the certificate via EJBCA CMP protocol with HMAC authentication
 3. Installs the issued certificate into the Windows Local Machine certificate store
+4. Optionally exports the certificate with private key to a PFX file
 
 The script is designed to work with EJBCA in CA or RA Mode using HMAC-based authentication and supports both modern and legacy Windows systems.
 
@@ -19,6 +20,8 @@ The script is designed to work with EJBCA in CA or RA Mode using HMAC-based auth
 - **Flexible Configuration**: Extensive command-line parameters for customization
 - **DNS SAN Support**: Optional DNS Subject Alternative Name extension
 - **Configurable Key Sizes**: Support for 2048, 3072, and 4096-bit RSA keys
+- **PFX Export**: Export certificate with private key to password-protected PFX file
+- **Configurable PFX Encryption**: Choose between AES-256 (default) or Triple DES encryption
 - **Audit Logging**: Persistent audit trail of all enrollment sessions
 - **Artifact Management**: Optional cleanup of intermediate files
 - **Debug Mode**: Verbose logging for troubleshooting
@@ -96,6 +99,39 @@ This will use all default values to enroll a certificate.
                      -SubjectDN "CN=clean-device,OU=Production,O=MyOrg,C=US"
 ```
 
+#### Export Certificate to PFX (Default AES-256 Encryption)
+
+```powershell
+.\cmp-enrollment.ps1 -ExportPfx `
+                     -SubjectDN "CN=device01,OU=IoT,O=MyOrg,C=US"
+```
+
+#### Export Certificate to PFX with Triple DES Encryption
+
+```powershell
+.\cmp-enrollment.ps1 -ExportPfx `
+                     -PfxEncryption 3des `
+                     -SubjectDN "CN=legacy-device,OU=IoT,O=MyOrg,C=US"
+```
+
+#### Export Certificate to PFX at Specific Location
+
+```powershell
+.\cmp-enrollment.ps1 -ExportPfx `
+                     -PfxOutputPath "C:\Certificates\device01.pfx" `
+                     -SubjectDN "CN=device01,OU=IoT,O=MyOrg,C=US"
+```
+
+#### Export Certificate to PFX with Password (Automated Scenarios)
+
+```powershell
+.\cmp-enrollment.ps1 -ExportPfx `
+                     -PfxPassword "MySecurePassword123" `
+                     -SubjectDN "CN=device01,OU=IoT,O=MyOrg,C=US"
+```
+
+**Note**: Providing passwords via command line is less secure and should only be used in automated scenarios where interactive prompts are not possible.
+
 #### Enable Verbose Debug Logging
 
 ```powershell
@@ -122,6 +158,10 @@ This will use all default values to enroll a certificate.
 | `-KeyLength` | string | `2048` | RSA key length (Valid: 2048, 3072, 4096) |
 | `-IncludeDnsSan` | bool | `$true` | Include DNS Subject Alternative Name extension |
 | `-CleanupArtifacts` | bool | `$true` | Remove generated files after successful enrollment |
+| `-ExportPfx` | switch | `$false` | Export certificate and private key to PFX file |
+| `-PfxEncryption` | string | `aes256` | PFX encryption algorithm (Valid: aes256, 3des) |
+| `-PfxOutputPath` | string | `""` | Full path for PFX file (default: script directory) |
+| `-PfxPassword` | string | `""` | Password for PFX file (default: interactive prompt) |
 | `-DebugLog` | switch | `$false` | Enable verbose console output |
 | `-Help` | switch | - | Display help message and exit |
 
@@ -136,8 +176,9 @@ Files are prefixed with the CN (Common Name) from the Subject DN:
 - `<CN>-request.pem` - PEM-formatted CSR
 - `<CN>-issued-cert.pem` - Issued certificate in PEM format
 - `<CN>-enroll.p7b` - PKCS#7 certificate bundle
+- `<CN>.pfx` - Password-protected PFX/PKCS#12 file (only if `-ExportPfx` is specified)
 
-**Note**: If `-CleanupArtifacts $true` is specified, these files are automatically removed after successful enrollment.
+**Note**: If `-CleanupArtifacts $true` is specified, intermediate files (INF, REQ, PEM, P7B) are automatically removed after successful enrollment. The PFX file is retained if exported.
 
 ### Audit Log
 
@@ -169,6 +210,13 @@ Files are prefixed with the CN (Common Name) from the Subject DN:
 - Converts issued certificate to PKCS#7 format
 - Installs to Local Machine Personal certificate store
 - Associates certificate with private key generated in Step 1
+
+### Step 5: Export to PFX (Optional)
+- If `-ExportPfx` is specified, calculates the thumbprint of the issued certificate
+- Finds the installed certificate in the certificate store by thumbprint (more reliable than Subject DN matching)
+- Prompts for a password to protect the PFX file (or uses provided password)
+- Exports certificate with private key using selected encryption (AES-256 or Triple DES)
+- Saves to specified location or script directory
 - Optionally cleans up intermediate files
 
 ## Certificate Storage
@@ -215,6 +263,19 @@ Error: CMP did not produce a certificate output file
 #### Permission Denied
 **Solution**: Run PowerShell as Administrator to install certificates to LocalMachine store
 
+#### PFX Export - Certificate Not Found
+```
+WARNING: Could not find certificate with thumbprint: ...
+```
+**Cause**: The certificate lookup uses the thumbprint from the issued certificate file, which is more reliable than Subject DN matching (EJBCA may reorder DN components).
+
+**Solution**:
+1. Verify the certificate was successfully installed using `certlm.msc` (Local Machine certificate manager)
+2. Check the audit log for any errors during certificate installation
+3. The script automatically handles DN reordering by using thumbprint matching instead of Subject DN matching
+
+**Note**: The script uses thumbprint-based certificate lookup to avoid issues with Subject DN ordering differences between the request and the issued certificate.
+
 ### Debug Logging
 
 Enable verbose logging for troubleshooting:
@@ -237,7 +298,15 @@ Get-Content .\ejbca-cmp-enrollment.log -Tail 100
 
 - **Shared Secrets**: The shared secret is passed via command line and may be visible in process listings. Consider alternative secure methods for production use.
 - **Challenge Password**: Similar to shared secret, consider secure input methods.
-- **Artifact Cleanup**: Use `-CleanupArtifacts $true` to remove intermediate files containing sensitive information.
+- **PFX Password**:
+  - By default, you'll be prompted to enter a password interactively (most secure)
+  - The `-PfxPassword` parameter allows providing the password via command line for automation
+  - **WARNING**: Command-line passwords may be visible in process listings and shell history
+  - Only use `-PfxPassword` in automated scenarios where interactive prompts are not possible
+  - Always use strong passwords to protect the private key
+- **PFX Encryption**: AES-256 (default) is recommended for better security. Triple DES is provided for legacy system compatibility only.
+- **PFX File Storage**: PFX files contain private keys. Store them in secure locations with appropriate access controls. Consider encrypting the storage location.
+- **Artifact Cleanup**: Use `-CleanupArtifacts $true` to remove intermediate files containing sensitive information. PFX files are retained when exported.
 - **Audit Trail**: The audit log contains enrollment details. Secure this file appropriately.
 - **Transport Security**: By default, the script uses HTTP for CMP communication. Configure EJBCA and modify the script for HTTPS in production environments.
 
@@ -288,6 +357,45 @@ This script requires the following EJBCA configuration:
                      -CaCertFile "server-ca.cer" `
                      -CleanupArtifacts $true
 ```
+
+### IoT Device with PFX Export
+
+```powershell
+.\cmp-enrollment.ps1 -Fqdn "iot-pki.company.com" `
+                     -Alias "iot-devices" `
+                     -SharedSecret "iot-secret-2024" `
+                     -SubjectDN "CN=sensor-02.iot.company.com,OU=IoT Sensors,O=Company,C=US" `
+                     -ExportPfx `
+                     -PfxOutputPath "C:\Certificates\sensor-02.pfx" `
+                     -CleanupArtifacts $true
+```
+
+### Legacy System with Triple DES PFX
+
+```powershell
+.\cmp-enrollment.ps1 -Fqdn "pki.company.com" `
+                     -Alias "legacy" `
+                     -SharedSecret "legacy-secret-2024" `
+                     -SubjectDN "CN=legacy-system-01.company.com,OU=Legacy Systems,O=Company,C=US" `
+                     -ExportPfx `
+                     -PfxEncryption 3des `
+                     -KeyLength 2048
+```
+
+### Automated PFX Export (CI/CD or Scripted Deployment)
+
+```powershell
+.\cmp-enrollment.ps1 -Fqdn "pki.company.com" `
+                     -Alias "automation" `
+                     -SharedSecret "automation-secret-2024" `
+                     -SubjectDN "CN=automated-device-01.company.com,OU=Automation,O=Company,C=US" `
+                     -ExportPfx `
+                     -PfxPassword "AutomatedP@ssw0rd!" `
+                     -PfxOutputPath "C:\Deploy\certificates\device.pfx" `
+                     -CleanupArtifacts $true
+```
+
+**Note**: This example shows automated deployment. Ensure secrets are managed securely (e.g., Azure Key Vault, AWS Secrets Manager, etc.) rather than hardcoded.
 
 ### Testing and Debugging
 

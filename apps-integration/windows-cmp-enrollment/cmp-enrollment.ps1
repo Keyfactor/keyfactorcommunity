@@ -32,6 +32,19 @@ param(
     [bool]$CleanupArtifacts = $true,
 
     [Parameter(Mandatory=$false)]
+    [switch]$ExportPfx,
+
+    [Parameter(Mandatory=$false)]
+    [ValidateSet("aes256", "3des")]
+    [string]$PfxEncryption = "aes256",
+
+    [Parameter(Mandatory=$false)]
+    [string]$PfxOutputPath = "",
+
+    [Parameter(Mandatory=$false)]
+    [string]$PfxPassword = "",
+
+    [Parameter(Mandatory=$false)]
     [switch]$DebugLog,
 
     [Parameter(Mandatory=$false)]
@@ -50,7 +63,8 @@ EJBCA CMP Enrollment Script
 
 DESCRIPTION:
     Generate a CSR via certreq, enroll for a certificate with the CSR using EJBCA CMP protocol,
-    and installs the issued certificate to the Windows Local Machine Personal certificate store.
+    installs the issued certificate to the Windows Local Machine Personal certificate store,
+    and optionally exports the certificate with private key to a PFX file.
 
 USAGE:
     .\ejbca_cmp_ps.ps1 [OPTIONS]
@@ -103,6 +117,36 @@ OPTIONS:
         Valid values: $true, $false
         Default: $false
 
+    -ExportPfx
+        Export the enrolled certificate and private key to a PFX file
+        The PFX file will contain the certificate and its private key
+        Requires a password to be entered during export for PFX encryption
+        Default: $false (no PFX export)
+
+    -PfxEncryption <string>
+        Encryption algorithm for the PFX file
+        Valid values: aes256, 3des
+        aes256 = AES-256 encryption (recommended, more secure)
+        3des = Triple DES encryption (legacy compatibility)
+        Only applies when -ExportPfx is specified
+        Default: aes256
+
+    -PfxOutputPath <string>
+        Full path where the PFX file should be saved
+        If not specified, the PFX will be saved in the script's directory
+        Filename will be: <CN>.pfx
+        Example: "C:\Certificates\device01.pfx"
+        Only applies when -ExportPfx is specified
+        Default: "" (current script directory)
+
+    -PfxPassword <string>
+        Password to protect the PFX file
+        If not specified, you will be prompted to enter the password interactively
+        WARNING: Passing passwords via command line may be visible in process listings
+        Consider using the interactive prompt for better security
+        Only applies when -ExportPfx is specified
+        Default: "" (interactive prompt)
+
     -DebugLog
         Enable verbose console output (all details to console)
         Without this flag, only progress messages are shown on console
@@ -134,6 +178,18 @@ EXAMPLES:
     # Enroll and clean up all artifacts after successful installation
     .\ejbca_cmp_ps.ps1 -CleanupArtifacts `$true -SubjectDN "CN=clean-device,OU=Production,O=MyOrg,C=US"
 
+    # Export certificate to PFX file with default AES-256 encryption
+    .\ejbca_cmp_ps.ps1 -ExportPfx -SubjectDN "CN=device01,OU=IoT,O=MyOrg,C=US"
+
+    # Export certificate to PFX with Triple DES encryption (legacy compatibility)
+    .\ejbca_cmp_ps.ps1 -ExportPfx -PfxEncryption 3des -SubjectDN "CN=device01,OU=IoT,O=MyOrg,C=US"
+
+    # Export certificate to PFX at a specific location
+    .\ejbca_cmp_ps.ps1 -ExportPfx -PfxOutputPath "C:\Certificates\device01.pfx" -SubjectDN "CN=device01,OU=IoT,O=MyOrg,C=US"
+
+    # Export certificate to PFX with password provided via command line (less secure)
+    .\ejbca_cmp_ps.ps1 -ExportPfx -PfxPassword "MySecurePassword123" -SubjectDN "CN=device01,OU=IoT,O=MyOrg,C=US"
+
     # Enable verbose console output for troubleshooting
     .\ejbca_cmp_ps.ps1 -DebugLog -SubjectDN "CN=debug-device,OU=Testing,O=MyOrg,C=US"
 
@@ -152,6 +208,7 @@ OUTPUT FILES:
     - <CN>-request.pem       : PEM-formatted CSR
     - <CN>-issued-cert.pem   : Issued certificate
     - <CN>-enroll.p7b        : PKCS#7 certificate bundle
+    - <CN>.pfx               : PFX/PKCS#12 file (only if -ExportPfx is specified)
 
     Persistent audit log (appends for all enrollments):
     - ejbca-cmp-enrollment.log : Audit trail of all enrollment sessions
@@ -200,6 +257,23 @@ $certPem = Join-Path $BasePath "$sanitizedCN-issued-cert.pem"
 $p7bPath = Join-Path $BasePath "$sanitizedCN-enroll.p7b"
 $logFile = Join-Path $BasePath "ejbca-cmp-enrollment.log"
 
+# PFX export path - either use specified path or default to current directory
+if ($ExportPfx) {
+    if ([string]::IsNullOrWhiteSpace($PfxOutputPath)) {
+        $pfxPath = Join-Path $BasePath "$sanitizedCN.pfx"
+    } else {
+        # If user provided a directory path, append the filename
+        if (Test-Path -LiteralPath $PfxOutputPath -PathType Container) {
+            $pfxPath = Join-Path $PfxOutputPath "$sanitizedCN.pfx"
+        } else {
+            # User provided a full file path
+            $pfxPath = $PfxOutputPath
+        }
+    }
+} else {
+    $pfxPath = $null
+}
+
 # Log file is persistent and appends for audit trail
 # Do not remove or initialize - each run appends to the log
 
@@ -236,6 +310,11 @@ Write-Log "Key Length:     $KeyLength bits" -AlwaysShow
 Write-Log "Include DNS SAN: $IncludeDnsSan" -AlwaysShow
 Write-Log "MachineKeySet:  $UseMachineKeySet" -AlwaysShow
 Write-Log "Cleanup After:  $CleanupArtifacts" -AlwaysShow
+Write-Log "Export PFX:     $ExportPfx" -AlwaysShow
+if ($ExportPfx) {
+    Write-Log "PFX Encryption: $PfxEncryption" -AlwaysShow
+    Write-Log "PFX Path:       $pfxPath" -AlwaysShow
+}
 Write-Log "Audit log:      $logFile" -AlwaysShow
 Write-Log "" -AlwaysShow
 
@@ -443,6 +522,79 @@ certreq.exe -accept $p7bPath | Out-Null
 Write-Log "Certificate installed to: LocalMachine\Personal (Computer Certificate Store)"
 
 # --------------------------
+# [5] Export to PFX if requested
+# --------------------------
+if ($ExportPfx) {
+    Write-Log "" -AlwaysShow
+    Write-Log "[5] Exporting certificate to PFX..." -AlwaysShow
+
+    # Get the thumbprint from the issued certificate PEM file
+    $certThumbprintOutput = & $OpenSsl x509 -in $certPem -noout -fingerprint -sha1 2>&1
+    Write-Log "Certificate fingerprint output: $certThumbprintOutput"
+
+    # Parse thumbprint from output (format: "SHA1 Fingerprint=XX:XX:XX:...")
+    if ($certThumbprintOutput -match "SHA1 Fingerprint=([A-F0-9:]+)") {
+        $thumbprintWithColons = $matches[1]
+        $certThumbprint = $thumbprintWithColons -replace ":", ""
+        Write-Log "Parsed certificate thumbprint: $certThumbprint"
+    } else {
+        Write-Log "ERROR: Could not parse certificate thumbprint from OpenSSL output" -AlwaysShow
+        Write-Log "Skipping PFX export." -AlwaysShow
+        $certThumbprint = $null
+    }
+
+    if ($null -ne $certThumbprint) {
+        # Find the certificate by thumbprint in LocalMachine\My store
+        $certs = Get-ChildItem -Path "Cert:\LocalMachine\My"
+        $cert = $certs | Where-Object { $_.Thumbprint -ieq $certThumbprint } | Select-Object -First 1
+
+        if ($null -eq $cert) {
+            Write-Log "WARNING: Could not find certificate with thumbprint: $certThumbprint" -AlwaysShow
+            Write-Log "The certificate may not have been installed properly." -AlwaysShow
+            Write-Log "Skipping PFX export." -AlwaysShow
+        } else {
+            Write-Log "Found certificate by thumbprint: $($cert.Thumbprint)"
+            Write-Log "Subject: $($cert.Subject)"
+
+            # Get PFX password - either from parameter or prompt
+            if ([string]::IsNullOrWhiteSpace($PfxPassword)) {
+                # Prompt for PFX password interactively
+                Write-Host ""
+                Write-Host "Enter password to protect the PFX file:"
+                $pfxPasswordSecure = Read-Host -AsSecureString
+            } else {
+                # Use provided password
+                Write-Log "Using PFX password from command line parameter"
+                $pfxPasswordSecure = ConvertTo-SecureString -String $PfxPassword -AsPlainText -Force
+            }
+
+            # Determine encryption algorithm parameter
+            $encryptionParam = switch ($PfxEncryption) {
+                "aes256" { "AES256_SHA256" }
+                "3des" { "TripleDES_SHA1" }
+                default { "AES256_SHA256" }
+            }
+
+            try {
+                # Export certificate with private key to PFX
+                Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password $pfxPasswordSecure -CryptoAlgorithmOption $encryptionParam -ChainOption BuildChain | Out-Null
+
+                if (Test-Path $pfxPath) {
+                    Write-Log "PFX exported successfully: $pfxPath" -AlwaysShow
+                    Write-Log "Encryption: $PfxEncryption ($encryptionParam)" -AlwaysShow
+                } else {
+                    Write-Log "WARNING: PFX file was not created at: $pfxPath" -AlwaysShow
+                }
+            } catch {
+                Write-Log "ERROR exporting PFX: $_" -AlwaysShow
+                Write-Log "Certificate remains installed in LocalMachine\Personal store." -AlwaysShow
+            }
+        }
+    }
+    Write-Log ""
+}
+
+# --------------------------
 # Cleanup artifacts if requested
 # --------------------------
 if ($CleanupArtifacts) {
@@ -467,6 +619,9 @@ if ($CleanupArtifacts) {
     Write-Log ""
     Write-Log "Done. Removed $removedCount artifact file(s)."
     Write-Log "Certificate is installed in: LocalMachine\Personal (Computer Certificate Store)"
+    if ($ExportPfx -and (Test-Path $pfxPath)) {
+        Write-Log "PFX file retained: $pfxPath"
+    }
 } else {
     Write-Log ""
     Write-Log "Done. Artifacts:"
@@ -475,6 +630,9 @@ if ($CleanupArtifacts) {
     Write-Log "  CSR (PEM) : $csrPem"
     Write-Log "  CERT (PEM): $certPem"
     Write-Log "  P7B       : $p7bPath"
+    if ($ExportPfx -and (Test-Path $pfxPath)) {
+        Write-Log "  PFX       : $pfxPath"
+    }
 }
 
 Write-Log "" -AlwaysShow
