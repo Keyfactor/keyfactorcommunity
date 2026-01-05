@@ -568,26 +568,72 @@ if ($ExportPfx) {
                 $pfxPasswordSecure = ConvertTo-SecureString -String $PfxPassword -AsPlainText -Force
             }
 
-            # Determine encryption algorithm parameter
-            $encryptionParam = switch ($PfxEncryption) {
-                "aes256" { "AES256_SHA256" }
-                "3des" { "TripleDES_SHA1" }
-                default { "AES256_SHA256" }
-            }
+            # Detect Windows version for PFX export method
+            $osVersion = [System.Environment]::OSVersion.Version
+            $isWindows7OrOlder = ($osVersion.Major -lt 6) -or ($osVersion.Major -eq 6 -and $osVersion.Minor -lt 2)
 
-            try {
-                # Export certificate with private key to PFX
-                Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password $pfxPasswordSecure -CryptoAlgorithmOption $encryptionParam -ChainOption BuildChain | Out-Null
+            if ($isWindows7OrOlder) {
+                # Windows 7 or older: Use certutil -exportPFX
+                Write-Log "Detected Windows 7 or older (version $($osVersion.Major).$($osVersion.Minor)) - using certutil for PFX export"
 
-                if (Test-Path $pfxPath) {
-                    Write-Log "PFX exported successfully: $pfxPath" -AlwaysShow
-                    Write-Log "Encryption: $PfxEncryption ($encryptionParam)" -AlwaysShow
-                } else {
-                    Write-Log "WARNING: PFX file was not created at: $pfxPath" -AlwaysShow
+                try {
+                    # Convert SecureString password to plain text for certutil
+                    $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($pfxPasswordSecure)
+                    $plainPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
+                    [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+
+                    # Use certutil to export PFX
+                    # certutil -exportPFX -p <password> My <thumbprint> <output-file>
+                    $certutilArgs = @(
+                        "-exportPFX",
+                        "-p", $plainPassword,
+                        "My", $certThumbprint,
+                        "`"$pfxPath`""
+                    )
+
+                    $certutilOutput = & certutil.exe @certutilArgs 2>&1
+                    Write-Log "certutil output: $certutilOutput"
+
+                    if (Test-Path $pfxPath) {
+                        Write-Log "PFX exported successfully using certutil: $pfxPath" -AlwaysShow
+                        Write-Log "Encryption: $PfxEncryption (certutil default)" -AlwaysShow
+                    } else {
+                        Write-Log "WARNING: PFX file was not created at: $pfxPath" -AlwaysShow
+                    }
+                } catch {
+                    Write-Log "ERROR exporting PFX with certutil: $_" -AlwaysShow
+                    Write-Log "Certificate remains installed in LocalMachine\Personal store." -AlwaysShow
+                } finally {
+                    # Clear the plain text password from memory
+                    if ($plainPassword) {
+                        $plainPassword = $null
+                    }
                 }
-            } catch {
-                Write-Log "ERROR exporting PFX: $_" -AlwaysShow
-                Write-Log "Certificate remains installed in LocalMachine\Personal store." -AlwaysShow
+            } else {
+                # Windows 8 or newer: Use Export-PfxCertificate cmdlet
+                Write-Log "Detected Windows 8 or newer (version $($osVersion.Major).$($osVersion.Minor)) - using Export-PfxCertificate"
+
+                # Determine encryption algorithm parameter
+                $encryptionParam = switch ($PfxEncryption) {
+                    "aes256" { "AES256_SHA256" }
+                    "3des" { "TripleDES_SHA1" }
+                    default { "AES256_SHA256" }
+                }
+
+                try {
+                    # Export certificate with private key to PFX
+                    Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password $pfxPasswordSecure -CryptoAlgorithmOption $encryptionParam -ChainOption BuildChain | Out-Null
+
+                    if (Test-Path $pfxPath) {
+                        Write-Log "PFX exported successfully: $pfxPath" -AlwaysShow
+                        Write-Log "Encryption: $PfxEncryption ($encryptionParam)" -AlwaysShow
+                    } else {
+                        Write-Log "WARNING: PFX file was not created at: $pfxPath" -AlwaysShow
+                    }
+                } catch {
+                    Write-Log "ERROR exporting PFX: $_" -AlwaysShow
+                    Write-Log "Certificate remains installed in LocalMachine\Personal store." -AlwaysShow
+                }
             }
         }
     }
