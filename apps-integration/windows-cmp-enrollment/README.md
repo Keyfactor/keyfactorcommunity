@@ -315,7 +315,7 @@ Get-Content .\ejbca-cmp-enrollment.log -Tail 100
 This script requires the following EJBCA configuration:
 
 1. **CMP Alias**: Configure a CMP alias in EJBCA
-   - Set to RA Mode
+   - Set to RA or CA Mode
    - Configure HMAC-based authentication
    - Set Response Protection to "signature"
 
