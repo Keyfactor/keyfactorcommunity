@@ -1,5 +1,5 @@
 # RUNNING EJBCA DOCKER WITH TERRAFORM
-Run a production-ready [EJBCA docker container][1] using Terraform using an external MariaDB database and a Nginx reverse proxy.
+Run a [EJBCA docker container][1] using Terraform using an external MariaDB database and a Nginx reverse proxy.
 Environment variables:
 - `TLS_SETUP_ENABLED=later`
 - `PROXY_HTTP_BIND`
