@@ -45,6 +45,10 @@ param(
     [string]$PfxPassword = "",
 
     [Parameter(Mandatory=$false)]
+    [ValidateSet("LocalMachine", "CurrentUser", "Both")]
+    [string]$CertificateStore = "LocalMachine",
+
+    [Parameter(Mandatory=$false)]
     [switch]$DebugLog,
 
     [Parameter(Mandatory=$false)]
@@ -147,6 +151,18 @@ OPTIONS:
         Only applies when -ExportPfx is specified
         Default: "" (interactive prompt)
 
+    -CertificateStore <string>
+        Windows certificate store(s) to install the enrolled certificate into
+        Valid values:
+          LocalMachine  - Install to Local Machine\Personal (Computer Certificate Store)
+                          Requires administrator privileges. Private key stored in machine key store.
+          CurrentUser   - Install to Current User\Personal (User Certificate Store)
+                          No administrator privileges required. Private key stored in user key store.
+          Both          - Install to both Local Machine\Personal and Current User\Personal
+                          The certificate and private key are available in both stores.
+                          Requires administrator privileges.
+        Default: LocalMachine
+
     -DebugLog
         Enable verbose console output (all details to console)
         Without this flag, only progress messages are shown on console
@@ -189,6 +205,12 @@ EXAMPLES:
 
     # Export certificate to PFX with password provided via command line (less secure)
     .\ejbca_cmp_ps.ps1 -ExportPfx -PfxPassword "MySecurePassword123" -SubjectDN "CN=device01,OU=IoT,O=MyOrg,C=US"
+
+    # Install certificate into Current User Personal store instead of Local Machine
+    .\ejbca_cmp_ps.ps1 -CertificateStore CurrentUser -SubjectDN "CN=user-device,OU=Users,O=MyOrg,C=US"
+
+    # Install certificate into both Local Machine and Current User Personal stores
+    .\ejbca_cmp_ps.ps1 -CertificateStore Both -SubjectDN "CN=shared-device,OU=IoT,O=MyOrg,C=US"
 
     # Enable verbose console output for troubleshooting
     .\ejbca_cmp_ps.ps1 -DebugLog -SubjectDN "CN=debug-device,OU=Testing,O=MyOrg,C=US"
@@ -233,8 +255,8 @@ $CmpAlias       = $Alias
 $RaSharedSecret = $SharedSecret
 $Ref            = $cnValue  # Use CN from Subject DN as the reference
 
-# Use LocalMachine keyset for machine certificate store
-$UseMachineKeySet = $true
+# Use LocalMachine keyset when installing to LocalMachine or Both stores
+$UseMachineKeySet = ($CertificateStore -ne "CurrentUser")
 
 # --------------------------
 # Local paths (current folder)
@@ -309,6 +331,7 @@ Write-Log "CMP Alias:      $CmpAlias" -AlwaysShow
 Write-Log "Key Length:     $KeyLength bits" -AlwaysShow
 Write-Log "Include DNS SAN: $IncludeDnsSan" -AlwaysShow
 Write-Log "MachineKeySet:  $UseMachineKeySet" -AlwaysShow
+Write-Log "Cert Store:     $CertificateStore" -AlwaysShow
 Write-Log "Cleanup After:  $CleanupArtifacts" -AlwaysShow
 Write-Log "Export PFX:     $ExportPfx" -AlwaysShow
 if ($ExportPfx) {
@@ -511,15 +534,61 @@ Write-Log ""
 # --------------------------
 # [4/4] Install issued cert
 # --------------------------
-Write-Log "[4/4] Converting issued cert to PKCS#7 and installing to LocalMachine\Personal..." -AlwaysShow
+$primaryStoreLabel = switch ($CertificateStore) {
+    "LocalMachine" { "LocalMachine\Personal" }
+    "CurrentUser"  { "CurrentUser\Personal" }
+    "Both"         { "LocalMachine\Personal and CurrentUser\Personal" }
+}
+Write-Log "[4/4] Converting issued cert to PKCS#7 and installing to $primaryStoreLabel..." -AlwaysShow
 & $OpenSsl crl2pkcs7 -nocrl -certfile $certPem -outform DER -out $p7bPath
 if (!(Test-Path $p7bPath)) { throw "PKCS#7 was not created: $p7bPath" }
 
-# Install to Local Machine Personal certificate store
-# When MachineKeySet=TRUE, certreq -accept automatically uses LocalMachine store
+# certreq -accept installs to the store matching the MachineKeySet used during CSR generation:
+#   MachineKeySet=TRUE  -> LocalMachine\My (private key in machine key store)
+#   MachineKeySet=FALSE -> CurrentUser\My  (private key in user key store)
 certreq.exe -accept $p7bPath | Out-Null
+Write-Log "Certificate installed to: $primaryStoreLabel"
 
-Write-Log "Certificate installed to: LocalMachine\Personal (Computer Certificate Store)"
+# For "Both": the cert+key is now in LocalMachine\My. Copy it to CurrentUser\My
+# by exporting a temporary PFX from LocalMachine and re-importing into CurrentUser.
+if ($CertificateStore -eq "Both") {
+    Write-Log "Installing certificate and private key into CurrentUser\Personal..." -AlwaysShow
+
+    # Get thumbprint from the issued cert PEM so we can find it in the store
+    $bothThumbprintOut = & $OpenSsl x509 -in $certPem -noout -fingerprint -sha1 2>&1
+    if ($bothThumbprintOut -match "SHA1 Fingerprint=([A-F0-9:]+)") {
+        $bothThumbprint = $matches[1] -replace ":", ""
+        Write-Log "Thumbprint for cross-store copy: $bothThumbprint"
+
+        $lmCert = Get-ChildItem -Path "Cert:\LocalMachine\My" |
+                  Where-Object { $_.Thumbprint -ieq $bothThumbprint } |
+                  Select-Object -First 1
+
+        if ($null -eq $lmCert) {
+            Write-Log "WARNING: Could not find certificate in LocalMachine\My by thumbprint. Skipping CurrentUser install." -AlwaysShow
+        } else {
+            # Export to a temporary PFX with a random password, import into CurrentUser\My, then delete
+            $tempPfxPath     = Join-Path $BasePath "$sanitizedCN-temp-cross-store.pfx"
+            $tempPfxBytes    = New-Object byte[] 32
+            [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($tempPfxBytes)
+            $tempPfxPassword = [Convert]::ToBase64String($tempPfxBytes)
+            $tempPfxSecure   = ConvertTo-SecureString -String $tempPfxPassword -AsPlainText -Force
+
+            try {
+                Export-PfxCertificate -Cert $lmCert -FilePath $tempPfxPath -Password $tempPfxSecure -ChainOption BuildChain | Out-Null
+                Import-PfxCertificate -FilePath $tempPfxPath -CertStoreLocation "Cert:\CurrentUser\My" -Password $tempPfxSecure | Out-Null
+                Write-Log "Certificate and private key installed to: CurrentUser\Personal"
+            } catch {
+                Write-Log "ERROR installing certificate to CurrentUser\Personal: $_" -AlwaysShow
+            } finally {
+                if (Test-Path $tempPfxPath) { Remove-Item -Force $tempPfxPath -ErrorAction SilentlyContinue }
+                $tempPfxPassword = $null
+            }
+        }
+    } else {
+        Write-Log "WARNING: Could not parse thumbprint for CurrentUser install. Skipping." -AlwaysShow
+    }
+}
 
 # --------------------------
 # [5] Export to PFX if requested
@@ -544,12 +613,14 @@ if ($ExportPfx) {
     }
 
     if ($null -ne $certThumbprint) {
-        # Find the certificate by thumbprint in LocalMachine\My store
-        $certs = Get-ChildItem -Path "Cert:\LocalMachine\My"
-        $cert = $certs | Where-Object { $_.Thumbprint -ieq $certThumbprint } | Select-Object -First 1
+        # Find the certificate by thumbprint in the primary store (where the private key lives)
+        $pfxStorePath = if ($CertificateStore -eq "CurrentUser") { "Cert:\CurrentUser\My" } else { "Cert:\LocalMachine\My" }
+        $cert = Get-ChildItem -Path $pfxStorePath |
+                Where-Object { $_.Thumbprint -ieq $certThumbprint } |
+                Select-Object -First 1
 
         if ($null -eq $cert) {
-            Write-Log "WARNING: Could not find certificate with thumbprint: $certThumbprint" -AlwaysShow
+            Write-Log "WARNING: Could not find certificate with thumbprint: $certThumbprint in $pfxStorePath" -AlwaysShow
             Write-Log "The certificate may not have been installed properly." -AlwaysShow
             Write-Log "Skipping PFX export." -AlwaysShow
         } else {
@@ -602,7 +673,7 @@ if ($ExportPfx) {
                     }
                 } catch {
                     Write-Log "ERROR exporting PFX with certutil: $_" -AlwaysShow
-                    Write-Log "Certificate remains installed in LocalMachine\Personal store." -AlwaysShow
+                    Write-Log "Certificate remains installed in $primaryStoreLabel store." -AlwaysShow
                 } finally {
                     # Clear the plain text password from memory
                     if ($plainPassword) {
@@ -632,7 +703,7 @@ if ($ExportPfx) {
                     }
                 } catch {
                     Write-Log "ERROR exporting PFX: $_" -AlwaysShow
-                    Write-Log "Certificate remains installed in LocalMachine\Personal store." -AlwaysShow
+                    Write-Log "Certificate remains installed in $primaryStoreLabel store." -AlwaysShow
                 }
             }
         }
@@ -664,7 +735,7 @@ if ($CleanupArtifacts) {
 
     Write-Log ""
     Write-Log "Done. Removed $removedCount artifact file(s)."
-    Write-Log "Certificate is installed in: LocalMachine\Personal (Computer Certificate Store)"
+    Write-Log "Certificate is installed in: $primaryStoreLabel"
     if ($ExportPfx -and (Test-Path $pfxPath)) {
         Write-Log "PFX file retained: $pfxPath"
     }

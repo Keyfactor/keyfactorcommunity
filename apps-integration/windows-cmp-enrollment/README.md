@@ -7,7 +7,7 @@ PowerShell script for automated certificate enrollment via EJBCA CMP (Certificat
 This script automates the complete certificate enrollment workflow:
 1. Generates a Certificate Signing Request (CSR) using Windows `certreq`
 2. Enrolls the certificate via EJBCA CMP protocol with HMAC authentication
-3. Installs the issued certificate into the Windows Local Machine certificate store
+3. Installs the issued certificate into the selected Windows certificate store (Local Machine, Current User, or both)
 4. Optionally exports the certificate with private key to a PFX file
 
 The script is designed to work with EJBCA in CA or RA Mode using HMAC-based authentication and supports both modern and legacy Windows systems.
@@ -20,6 +20,7 @@ The script is designed to work with EJBCA in CA or RA Mode using HMAC-based auth
 - **Flexible Configuration**: Extensive command-line parameters for customization
 - **DNS SAN Support**: Optional DNS Subject Alternative Name extension
 - **Configurable Key Sizes**: Support for 2048, 3072, and 4096-bit RSA keys
+- **Flexible Certificate Store**: Install to Local Machine, Current User, or both stores simultaneously
 - **PFX Export**: Export certificate with private key to password-protected PFX file
 - **Configurable PFX Encryption**: Choose between AES-256 (default) or Triple DES encryption
 - **Audit Logging**: Persistent audit trail of all enrollment sessions
@@ -48,7 +49,7 @@ The script is designed to work with EJBCA in CA or RA Mode using HMAC-based auth
 
 - CA certificate chain must be installed in Windows CAPI (Certificate API)
 - Network access to the EJBCA server
-- Administrator privileges (for installing certificates to Local Machine store)
+- Administrator privileges (required when installing to Local Machine store; not required for Current User store only)
 
 ## Installation
 
@@ -132,6 +133,24 @@ This will use all default values to enroll a certificate.
 
 **Note**: Providing passwords via command line is less secure and should only be used in automated scenarios where interactive prompts are not possible.
 
+#### Install to Current User Personal Store
+
+```powershell
+.\cmp-enrollment.ps1 -CertificateStore CurrentUser `
+                     -SubjectDN "CN=user-device,OU=Users,O=MyOrg,C=US"
+```
+
+No administrator privileges required. The private key is stored in the current user's key store.
+
+#### Install to Both Local Machine and Current User Stores
+
+```powershell
+.\cmp-enrollment.ps1 -CertificateStore Both `
+                     -SubjectDN "CN=shared-device,OU=IoT,O=MyOrg,C=US"
+```
+
+The certificate and private key are installed to both `LocalMachine\Personal` and `CurrentUser\Personal`. Requires administrator privileges.
+
 #### Enable Verbose Debug Logging
 
 ```powershell
@@ -162,6 +181,7 @@ This will use all default values to enroll a certificate.
 | `-PfxEncryption` | string | `aes256` | PFX encryption algorithm (Valid: aes256, 3des) |
 | `-PfxOutputPath` | string | `""` | Full path for PFX file (default: script directory) |
 | `-PfxPassword` | string | `""` | Password for PFX file (default: interactive prompt) |
+| `-CertificateStore` | string | `LocalMachine` | Certificate store to install into (Valid: `LocalMachine`, `CurrentUser`, `Both`) |
 | `-DebugLog` | switch | `$false` | Enable verbose console output |
 | `-Help` | switch | - | Display help message and exit |
 
@@ -208,7 +228,10 @@ Files are prefixed with the CN (Common Name) from the Subject DN:
 
 ### Step 4: Install Certificate
 - Converts issued certificate to PKCS#7 format
-- Installs to Local Machine Personal certificate store
+- Installs to the certificate store(s) specified by `-CertificateStore`:
+  - **LocalMachine** (default): installs to `LocalMachine\Personal`; private key stored in machine key store
+  - **CurrentUser**: installs to `CurrentUser\Personal`; private key stored in user key store
+  - **Both**: installs to `LocalMachine\Personal` first, then copies the certificate and private key into `CurrentUser\Personal` via a temporary PFX
 - Associates certificate with private key generated in Step 1
 
 ### Step 5: Export to PFX (Optional)
@@ -221,10 +244,13 @@ Files are prefixed with the CN (Common Name) from the Subject DN:
 
 ## Certificate Storage
 
-Certificates are installed to:
-- **Store Location**: `LocalMachine` (Computer Certificate Store)
-- **Store Name**: `Personal` (My)
-- **Key Storage**: Machine key set (available to all users on the system)
+The target store is controlled by the `-CertificateStore` parameter:
+
+| Value | Store Location | Key Storage | Privileges Required |
+|-------|---------------|-------------|---------------------|
+| `LocalMachine` (default) | `LocalMachine\Personal` | Machine key store (all users) | Administrator |
+| `CurrentUser` | `CurrentUser\Personal` | User key store (current user only) | None |
+| `Both` | `LocalMachine\Personal` and `CurrentUser\Personal` | Both key stores | Administrator |
 
 ## Troubleshooting
 
@@ -261,7 +287,7 @@ Error: CMP did not produce a certificate output file
 5. Ensure Subject DN matches End Entity profile requirements
 
 #### Permission Denied
-**Solution**: Run PowerShell as Administrator to install certificates to LocalMachine store
+**Solution**: Run PowerShell as Administrator when using `-CertificateStore LocalMachine` or `-CertificateStore Both`. If administrator privileges are not available, use `-CertificateStore CurrentUser` instead.
 
 #### PFX Export - Certificate Not Found
 ```
@@ -396,6 +422,28 @@ This script requires the following EJBCA configuration:
 ```
 
 **Note**: This example shows automated deployment. Ensure secrets are managed securely (e.g., Azure Key Vault, AWS Secrets Manager, etc.) rather than hardcoded.
+
+### User Certificate (No Admin Required)
+
+```powershell
+.\cmp-enrollment.ps1 -Fqdn "pki.company.com" `
+                     -Alias "users" `
+                     -SharedSecret "user-secret-2024" `
+                     -SubjectDN "CN=john.doe,OU=Users,O=Company,C=US" `
+                     -CertificateStore CurrentUser `
+                     -CleanupArtifacts $true
+```
+
+### Shared Workstation (Both Stores)
+
+```powershell
+.\cmp-enrollment.ps1 -Fqdn "pki.company.com" `
+                     -Alias "workstations" `
+                     -SharedSecret "ws-secret-2024" `
+                     -SubjectDN "CN=workstation-01.company.com,OU=Workstations,O=Company,C=US" `
+                     -CertificateStore Both `
+                     -CleanupArtifacts $true
+```
 
 ### Testing and Debugging
 
