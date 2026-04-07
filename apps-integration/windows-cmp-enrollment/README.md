@@ -231,7 +231,7 @@ Files are prefixed with the CN (Common Name) from the Subject DN:
 - Installs to the certificate store(s) specified by `-CertificateStore`:
   - **LocalMachine** (default): installs to `LocalMachine\Personal`; private key stored in machine key store
   - **CurrentUser**: installs to `CurrentUser\Personal`; private key stored in user key store
-  - **Both**: installs to `LocalMachine\Personal` first, then copies the certificate and private key into `CurrentUser\Personal` via a temporary PFX
+  - **Both**: installs to `LocalMachine\Personal` first, then copies the certificate and private key into `CurrentUser\Personal` via a temporary PFX. Uses `Export/Import-PfxCertificate` on Windows 8+, or `certutil -exportPFX` / `certutil -user -importPFX` on Windows 7
 - Associates certificate with private key generated in Step 1
 
 ### Step 5: Export to PFX (Optional)
@@ -251,6 +251,8 @@ The target store is controlled by the `-CertificateStore` parameter:
 | `LocalMachine` (default) | `LocalMachine\Personal` | Machine key store (all users) | Administrator |
 | `CurrentUser` | `CurrentUser\Personal` | User key store (current user only) | None |
 | `Both` | `LocalMachine\Personal` and `CurrentUser\Personal` | Both key stores | Administrator |
+
+When `Both` is selected, the script installs to `LocalMachine\Personal` first (via `certreq -accept`), then copies the certificate and private key into `CurrentUser\Personal` using a temporary PFX with a randomly generated password. On Windows 7, where `Export-PfxCertificate` and `Import-PfxCertificate` are unavailable, `certutil -exportPFX` and `certutil -user -importPFX` are used instead.
 
 ## Troubleshooting
 

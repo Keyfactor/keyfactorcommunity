@@ -560,30 +560,56 @@ if ($CertificateStore -eq "Both") {
         $bothThumbprint = $matches[1] -replace ":", ""
         Write-Log "Thumbprint for cross-store copy: $bothThumbprint"
 
-        $lmCert = Get-ChildItem -Path "Cert:\LocalMachine\My" |
-                  Where-Object { $_.Thumbprint -ieq $bothThumbprint } |
-                  Select-Object -First 1
+        $tempPfxPath = Join-Path $BasePath "$sanitizedCN-temp-cross-store.pfx"
 
-        if ($null -eq $lmCert) {
-            Write-Log "WARNING: Could not find certificate in LocalMachine\My by thumbprint. Skipping CurrentUser install." -AlwaysShow
-        } else {
-            # Export to a temporary PFX with a random password, import into CurrentUser\My, then delete
-            $tempPfxPath     = Join-Path $BasePath "$sanitizedCN-temp-cross-store.pfx"
-            $tempPfxBytes    = New-Object byte[] 32
-            [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($tempPfxBytes)
-            $tempPfxPassword = [Convert]::ToBase64String($tempPfxBytes)
-            $tempPfxSecure   = ConvertTo-SecureString -String $tempPfxPassword -AsPlainText -Force
+        # Generate a cryptographically random temporary PFX password
+        $tempPfxBytes    = New-Object byte[] 32
+        [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($tempPfxBytes)
+        $tempPfxPassword = [Convert]::ToBase64String($tempPfxBytes)
 
-            try {
-                Export-PfxCertificate -Cert $lmCert -FilePath $tempPfxPath -Password $tempPfxSecure -ChainOption BuildChain | Out-Null
-                Import-PfxCertificate -FilePath $tempPfxPath -CertStoreLocation "Cert:\CurrentUser\My" -Password $tempPfxSecure | Out-Null
-                Write-Log "Certificate and private key installed to: CurrentUser\Personal"
-            } catch {
-                Write-Log "ERROR installing certificate to CurrentUser\Personal: $_" -AlwaysShow
-            } finally {
-                if (Test-Path $tempPfxPath) { Remove-Item -Force $tempPfxPath -ErrorAction SilentlyContinue }
-                $tempPfxPassword = $null
+        $bothOsVersion       = [System.Environment]::OSVersion.Version
+        $bothIsWin7OrOlder   = ($bothOsVersion.Major -lt 6) -or ($bothOsVersion.Major -eq 6 -and $bothOsVersion.Minor -lt 2)
+
+        try {
+            if ($bothIsWin7OrOlder) {
+                # Windows 7 / older: Export-PfxCertificate and Import-PfxCertificate are not available.
+                # Use certutil -exportPFX / certutil -user -importPFX instead.
+                Write-Log "Detected Windows 7 or older - using certutil for cross-store copy"
+
+                $exportArgs = @("-exportPFX", "-p", $tempPfxPassword, "My", $bothThumbprint, "`"$tempPfxPath`"")
+                $exportOut  = & certutil.exe @exportArgs 2>&1
+                Write-Log "certutil -exportPFX output: $exportOut"
+
+                if (!(Test-Path $tempPfxPath)) {
+                    Write-Log "WARNING: certutil -exportPFX did not produce a file. Skipping CurrentUser install." -AlwaysShow
+                } else {
+                    $importArgs = @("-user", "-p", $tempPfxPassword, "-importPFX", "My", "`"$tempPfxPath`"")
+                    $importOut  = & certutil.exe @importArgs 2>&1
+                    Write-Log "certutil -importPFX output: $importOut"
+                    Write-Log "Certificate and private key installed to: CurrentUser\Personal"
+                }
+            } else {
+                # Windows 8+: use the PKI cmdlets
+                Write-Log "Detected Windows 8 or newer - using Export/Import-PfxCertificate for cross-store copy"
+
+                $lmCert = Get-ChildItem -Path "Cert:\LocalMachine\My" |
+                          Where-Object { $_.Thumbprint -ieq $bothThumbprint } |
+                          Select-Object -First 1
+
+                if ($null -eq $lmCert) {
+                    Write-Log "WARNING: Could not find certificate in LocalMachine\My by thumbprint. Skipping CurrentUser install." -AlwaysShow
+                } else {
+                    $tempPfxSecure = ConvertTo-SecureString -String $tempPfxPassword -AsPlainText -Force
+                    Export-PfxCertificate -Cert $lmCert -FilePath $tempPfxPath -Password $tempPfxSecure -ChainOption BuildChain | Out-Null
+                    Import-PfxCertificate -FilePath $tempPfxPath -CertStoreLocation "Cert:\CurrentUser\My" -Password $tempPfxSecure | Out-Null
+                    Write-Log "Certificate and private key installed to: CurrentUser\Personal"
+                }
             }
+        } catch {
+            Write-Log "ERROR installing certificate to CurrentUser\Personal: $_" -AlwaysShow
+        } finally {
+            if (Test-Path $tempPfxPath) { Remove-Item -Force $tempPfxPath -ErrorAction SilentlyContinue }
+            $tempPfxPassword = $null
         }
     } else {
         Write-Log "WARNING: Could not parse thumbprint for CurrentUser install. Skipping." -AlwaysShow
